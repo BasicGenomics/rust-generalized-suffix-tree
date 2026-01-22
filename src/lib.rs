@@ -4,27 +4,27 @@ mod disjoint_set;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use mediumvec::{Vec32, vec32};
+use mediumvec::{Vec, Vec};
 
-type NodeID = u32;
-type IndexType = u32;
-type CharType = u32;
+type NodeID = u64;
+type IndexType = u64;
+type CharType = u64;
 
 // Special nodes.
 const ROOT: NodeID = 0;
 const SINK: NodeID = 1;
 const INVALID: NodeID = NodeID::max_value();
 
-/// This structure represents a slice into a shared string buffer backed by `Rc<Vec32<u32>>`.
+/// This structure represents a slice into a shared string buffer backed by `Rc<Vec<u64>>`.
 #[derive(Debug, Clone)]
 struct MappedSubstring {
-    data: Rc<Vec32<u32>>,
+    data: Rc<Vec<u64>>,
     start: IndexType,
     end: IndexType,
 }
 
 impl MappedSubstring {
-    fn new(data: Rc<Vec32<u32>>, start: IndexType, end: IndexType) -> Self {
+    fn new(data: Rc<Vec<u64>>, start: IndexType, end: IndexType) -> Self {
         Self { data, start, end }
     }
 
@@ -36,7 +36,7 @@ impl MappedSubstring {
         self.end - self.start
     }
 
-    fn as_slice(&self) -> &[u32] {
+    fn as_slice(&self) -> &[u64] {
         &self.data[self.start as usize..self.end as usize]
     }
 }
@@ -60,7 +60,7 @@ struct Node {
 }
 
 impl Node {
-    fn new(data: Rc<Vec32<u32>>, start: IndexType, end: IndexType) -> Self {
+    fn new(data: Rc<Vec<u64>>, start: IndexType, end: IndexType) -> Self {
         Self {
             transitions: HashMap::new(),
             suffix_link: INVALID,
@@ -98,33 +98,33 @@ impl ReferencePoint {
 ///
 /// ```
 /// use generalized_suffix_tree::GeneralizedSuffixTree;
-/// use mediumvec::vec32;
+/// use mediumvec::Vec;
 /// let mut tree = GeneralizedSuffixTree::new();
-/// tree.add_string(vec32![1,2,3,4,5,6,7,8,9]);
-/// tree.add_string(vec32![7,8,9,10,11,12,13,14]);
+/// tree.add_string(Vec![1,2,3,4,5,6,7,8,9]);
+/// tree.add_string(Vec![7,8,9,10,11,12,13,14]);
 /// println!("{:?}", tree.is_suffix(&[7,8,9]));
 /// ```
 #[derive(Debug)]
 pub struct GeneralizedSuffixTree {
-    node_storage: Vec32<Node>,
-    inserted_strings_count: u32,
-    term: u32,
+    node_storage: Vec<Node>,
+    inserted_strings_count: u64,
+    term: u64,
 }
 
 impl Default for GeneralizedSuffixTree {
     fn default() -> Self {
         // Set the slice of root to be [0, 1) to allow it consume one character whenever we are transitioning from sink to root.
         // No other node will ever transition to root so this won't affect anything else.
-        let root_data = Rc::new(vec32![0]);
-        let empty = Rc::new(Vec32::new());
+        let root_data = Rc::new(Vec![0]);
+        let empty = Rc::new(Vec::new());
         let mut root = Node::new(root_data.clone(), 0, 1);
         let mut sink = Node::new(empty.clone(), 0, 0);
 
         root.suffix_link = SINK;
         sink.suffix_link = ROOT;
 
-        let term = u32::MAX;
-        let node_storage: Vec32<Node> = vec32![root, sink];
+        let term = u64::MAX;
+        let node_storage: Vec<Node> = Vec![root, sink];
         Self {
             node_storage,
             inserted_strings_count: 0,
@@ -144,7 +144,7 @@ impl GeneralizedSuffixTree {
     }
 
     /// Add a new string to the generalized suffix tree.
-    pub fn add_string(&mut self, mut s: Vec32<u32>) {
+    pub fn add_string(&mut self, mut s: Vec<u64>) {
         let term = self.term;
         self.decrement_term();
         self.validate_string(&s, term);
@@ -158,7 +158,7 @@ impl GeneralizedSuffixTree {
         self.process_suffixes(rc);
     }
 
-    fn validate_string(&self, s: &[u32], term: u32) {
+    fn validate_string(&self, s: &[u64], term: u64) {
         assert!(s.len() <= IndexType::max_value() as usize);
         assert!(!s.iter().any(|ch| *ch > self.term), "String contains character beyond allowed range");
         assert!(!s.contains(&term), "String should not contain terminator character");
@@ -170,7 +170,7 @@ impl GeneralizedSuffixTree {
     /// It can be trivially extended to support longest common substring among
     /// `K` strings.
     #[must_use]
-    pub fn longest_common_substring_all(&self) -> Vec32<u32> {
+    pub fn longest_common_substring_all(&self) -> Vec<u64> {
         let mut disjoint_set = disjoint_set::DisjointSet::new(self.node_storage.len());
 
         // prev_node stores the most recent occurance of a leaf that belongs to each string.
@@ -178,10 +178,10 @@ impl GeneralizedSuffixTree {
         let mut prev_node: HashMap<CharType, NodeID> = HashMap::new();
 
         // lca_cnt[v] means the total number of times that the lca of two nodes is node v.
-        let mut lca_cnt: Vec32<usize> = vec32![0; self.node_storage.len()];
+        let mut lca_cnt: Vec<usize> = Vec![0; self.node_storage.len()];
 
-        let mut longest_str: (Vec32<&MappedSubstring>, IndexType) = (Vec32::new(), 0);
-        let mut cur_str: (Vec32<&MappedSubstring>, IndexType) = (Vec32::new(), 0);
+        let mut longest_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);
+        let mut cur_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);
         self.longest_common_substring_all_rec(
             &mut disjoint_set,
             &mut prev_node,
@@ -191,9 +191,9 @@ impl GeneralizedSuffixTree {
             &mut cur_str,
         );
 
-        let mut result: Vec32<u32> = Vec32::new();
+        let mut result: Vec<u64> = Vec::new();
         for s in longest_str.0 {
-            result.extend(s.as_slice().iter().map(|n| *n).collect::<Vec32<u32>>());
+            result.extend(s.as_slice().iter().map(|n| *n).collect::<Vec<u64>>());
         }
         result
     }
@@ -217,10 +217,10 @@ impl GeneralizedSuffixTree {
         &'a self,
         disjoint_set: &mut disjoint_set::DisjointSet,
         prev_node: &mut HashMap<CharType, NodeID>,
-        lca_cnt: &mut Vec32<usize>,
+        lca_cnt: &mut Vec<usize>,
         node: NodeID,
-        longest_str: &mut (Vec32<&'a MappedSubstring>, IndexType),
-        cur_str: &mut (Vec32<&'a MappedSubstring>, IndexType),
+        longest_str: &mut (Vec<&'a MappedSubstring>, IndexType),
+        cur_str: &mut (Vec<&'a MappedSubstring>, IndexType),
     ) -> (usize, usize) {
         let mut total_leaf = 0;
         let mut total_correction = 0;
@@ -272,7 +272,7 @@ impl GeneralizedSuffixTree {
     /// Find the longest common substring between string `s` and the current suffix.
     /// This function allows us compute this without adding `s` to the suffix.
     #[must_use]
-    pub fn longest_common_substring_with<'a>(&self, s: &'a[u32]) -> &'a [u32] {
+    pub fn longest_common_substring_with<'a>(&self, s: &'a[u64]) -> &'a [u64] {
         let mut longest_start: IndexType = 0;
         let mut longest_len: IndexType = 0;
         let mut cur_start: IndexType = 0;
@@ -347,19 +347,19 @@ impl GeneralizedSuffixTree {
 
     /// Checks whether a given string `s` is a suffix in the suffix tree.
     #[must_use]
-    pub fn is_suffix(&self, s: &[u32]) -> bool {
+    pub fn is_suffix(&self, s: &[u64]) -> bool {
         self.is_suffix_or_substr(s, false)
     }
 
     /// Checks whether a given string `s` is a substring of any of the strings
     /// in the suffix tree.
     #[must_use]
-    pub fn is_substr(&self, s: &[u32]) -> bool {
+    pub fn is_substr(&self, s: &[u64]) -> bool {
         self.is_suffix_or_substr(s, true)
     }
 
     #[must_use]
-    fn is_suffix_or_substr(&self, s: &[u32], check_substr: bool) -> bool {
+    fn is_suffix_or_substr(&self, s: &[u64], check_substr: bool) -> bool {
         assert!(!s.iter().any(|ch| *ch > self.term), "Queried string cannot contain terminator char");
         let mut node = ROOT;
         let mut index = 0;
@@ -398,7 +398,7 @@ impl GeneralizedSuffixTree {
         self.print_recursive(ROOT, 0);
     }
 
-    fn print_recursive(&self, node: NodeID, space_count: u32) {
+    fn print_recursive(&self, node: NodeID, space_count: u64) {
         for target_node in self.get_node(node).transitions.values() {
             if *target_node == INVALID {
                 continue;
@@ -411,7 +411,7 @@ impl GeneralizedSuffixTree {
             self.print_recursive(*target_node, space_count + 4);
         }
     }
-    fn process_suffixes(&mut self, s: Rc<Vec32<u32>>) {
+    fn process_suffixes(&mut self, s: Rc<Vec<u64>>) {
         let mut active_point = ReferencePoint::new(ROOT, 0);
         for i in 0..s.len() {
             let mut cur_str = MappedSubstring::new(s.clone(), active_point.index, (i + 1) as IndexType);
@@ -513,7 +513,7 @@ impl GeneralizedSuffixTree {
         ReferencePoint::new(node, cur_str.start)
     }
 
-    fn create_node_with_slice(&mut self, data: Rc<Vec32<u32>>, start: IndexType, end: IndexType) -> NodeID {
+    fn create_node_with_slice(&mut self, data: Rc<Vec<u64>>, start: IndexType, end: IndexType) -> NodeID {
         let node = Node::new(data, start, end);
         self.node_storage.push(node);
 
@@ -528,23 +528,23 @@ impl GeneralizedSuffixTree {
         &mut self.node_storage[node_id as usize]
     }
 
-    fn get_string_slice_short<'a>(&'a self, slice: &'a MappedSubstring) -> &'a [u32] {
+    fn get_string_slice_short<'a>(&'a self, slice: &'a MappedSubstring) -> &'a [u64] {
         slice.as_slice()
     }
 
-    fn get_string(&self, slice: &MappedSubstring) -> Vec32<u32> {
-        slice.as_slice().iter().map(|n| *n).collect::<Vec32<u32>>()
+    fn get_string(&self, slice: &MappedSubstring) -> Vec<u64> {
+        slice.as_slice().iter().map(|n| *n).collect::<Vec<u64>>()
     }
 
-    fn collect_full_strings(&self) -> Vec<Vec32<u32>> {
-        let mut results: Vec<Vec32<u32>> = Vec::new();
-        let mut cur: Vec32<u32> = Vec32::new();
+    fn collect_full_strings(&self) -> Vec<Vec<u64>> {
+        let mut results: Vec<Vec<u64>> = Vec::new();
+        let mut cur: Vec<u64> = Vec::new();
 
         fn recurse(
             this: &GeneralizedSuffixTree,
             node: NodeID,
-            cur: &mut Vec32<u32>,
-            results: &mut Vec<Vec32<u32>>,
+            cur: &mut Vec<u64>,
+            results: &mut Vec<Vec<u64>>,
         ) {
             for (&_ch, &target) in this.get_node(node).transitions.iter() {
                 if target == INVALID {
@@ -561,7 +561,7 @@ impl GeneralizedSuffixTree {
                 if slice.end as usize == slice.data.len() {
                     if cur.len() == slice.data.len() {
                         if cur.len() >= 1 {
-                            let mut s = Vec32::new();
+                            let mut s = Vec::new();
                             let end = (cur.len() - 1) as usize; // drop terminator
                             for idx in 0..end {
                                 s.push(cur[idx]);
@@ -585,15 +585,15 @@ impl GeneralizedSuffixTree {
 
     /// Collect full inserted strings along with their unique terminator
     /// characters. Returns a Vec of (terminator, string-without-terminator).
-    pub fn collect_full_strings_with_terms(&self) -> Vec<(u32, Vec32<u32>)> {
-        let mut results: Vec<(u32, Vec32<u32>)> = Vec::new();
-        let mut cur: Vec32<u32> = Vec32::new();
+    pub fn collect_full_strings_with_terms(&self) -> Vec<(u64, Vec<u64>)> {
+        let mut results: Vec<(u64, Vec<u64>)> = Vec::new();
+        let mut cur: Vec<u64> = Vec::new();
 
         fn recurse(
             this: &GeneralizedSuffixTree,
             node: NodeID,
-            cur: &mut Vec32<u32>,
-            results: &mut Vec<(u32, Vec32<u32>)>,
+            cur: &mut Vec<u64>,
+            results: &mut Vec<(u64, Vec<u64>)>,
         ) {
             for (&_ch, &target) in this.get_node(node).transitions.iter() {
                 if target == INVALID {
@@ -607,7 +607,7 @@ impl GeneralizedSuffixTree {
                 if slice.end as usize == slice.data.len() {
                     if cur.len() >= 1 {
                         let term = cur[cur.len() - 1];
-                        let mut s = Vec32::new();
+                        let mut s = Vec::new();
                         let end = cur.len() - 1;
                         for idx in 0..end {
                             s.push(cur[idx]);
@@ -626,9 +626,9 @@ impl GeneralizedSuffixTree {
         recurse(self, ROOT, &mut cur, &mut results);
 
         // Keep only the longest string per terminator (the full inserted string).
-        let mut map: HashMap<u32, Vec32<u32>> = HashMap::new();
+        let mut map: HashMap<u64, Vec<u64>> = HashMap::new();
         for (term, s) in results.into_iter() {
-            let entry = map.entry(term).or_insert_with(Vec32::new);
+            let entry = map.entry(term).or_insert_with(Vec::new);
             if s.len() > entry.len() {
                 *entry = s;
             }
@@ -640,15 +640,15 @@ impl GeneralizedSuffixTree {
     /// non-empty suffix/prefix overlap. Each returned tuple is
     /// (string_i, string_j, overlap) where `overlap` is the maximal suffix of
     /// `string_i` that equals a prefix of `string_j` (length >= 1).
-    pub fn overlapping_pairs(&self) -> impl Iterator<Item = (Vec32<u32>, Vec32<u32>, Vec32<u32>)> {
+    pub fn overlapping_pairs(&self) -> impl Iterator<Item = (Vec<u64>, Vec<u64>, Vec<u64>)> {
         struct OverlapIter {
-            strs: Vec<Vec32<u32>>,
+            strs: Vec<Vec<u64>>,
             i: usize,
             j: usize,
         }
 
         impl Iterator for OverlapIter {
-            type Item = (Vec32<u32>, Vec32<u32>, Vec32<u32>);
+            type Item = (Vec<u64>, Vec<u64>, Vec<u64>);
 
             fn next(&mut self) -> Option<Self::Item> {
                 let n = self.strs.len();
@@ -682,7 +682,7 @@ impl GeneralizedSuffixTree {
                     }
                     self.j += 1;
                     if best_k > 0 {
-                        let mut overlap = Vec32::new();
+                        let mut overlap = Vec::new();
                         let start = len_i - best_k;
                         for t in start..len_i {
                             overlap.push(si[t]);
@@ -701,15 +701,15 @@ impl GeneralizedSuffixTree {
     /// where `term_i` and `term_j` are the unique terminator characters that
     /// identify the original inserted strings, and `overlap_vec` is the
     /// overlapping sequence (suffix of i == prefix of j) with length >= 1.
-    pub fn overlapping_pairs_indices(&self) -> impl Iterator<Item = (u32, u32, Vec32<u32>)> {
+    pub fn overlapping_pairs_indices(&self) -> impl Iterator<Item = (u64, u64, Vec<u64>)> {
         struct OverlapIdxIter {
-            pairs: Vec<(u32, Vec32<u32>)>,
+            pairs: Vec<(u64, Vec<u64>)>,
             i: usize,
             j: usize,
         }
 
         impl Iterator for OverlapIdxIter {
-            type Item = (u32, u32, Vec32<u32>);
+            type Item = (u64, u64, Vec<u64>);
 
             fn next(&mut self) -> Option<Self::Item> {
                 let n = self.pairs.len();
@@ -743,7 +743,7 @@ impl GeneralizedSuffixTree {
                     }
                     self.j += 1;
                     if best_k > 0 {
-                        let mut overlap = Vec32::new();
+                        let mut overlap = Vec::new();
                         let start = len_i - best_k;
                         for t in start..len_i {
                             overlap.push(si[t]);
@@ -766,15 +766,15 @@ impl GeneralizedSuffixTree {
     /// `term_i` describing the overlap region. This avoids allocating overlap
     /// vectors per yielded pair; consumers can map terminators to strings via
     /// `collect_full_strings_with_terms()` and slice accordingly.
-    pub fn overlapping_pairs_indices_noalloc(&self) -> impl Iterator<Item = (u32, u32, usize, usize)> {
+    pub fn overlapping_pairs_indices_noalloc(&self) -> impl Iterator<Item = (u64, u64, usize, usize)> {
         struct OverlapIdxNoAllocIter {
-            pairs: Vec<(u32, Vec32<u32>)>,
+            pairs: Vec<(u64, Vec<u64>)>,
             i: usize,
             j: usize,
         }
 
         impl Iterator for OverlapIdxNoAllocIter {
-            type Item = (u32, u32, usize, usize);
+            type Item = (u64, u64, usize, usize);
 
             fn next(&mut self) -> Option<Self::Item> {
                 let n = self.pairs.len();
@@ -820,13 +820,13 @@ impl GeneralizedSuffixTree {
     }
 
     /// Collect leaf nodes producing the unique terminator -> backing Rc mapping.
-    fn collect_leaf_nodes_with_terms(&self) -> Vec<(u32, Rc<Vec32<u32>>)> {
-        let mut map: HashMap<u32, Rc<Vec32<u32>>> = HashMap::new();
+    fn collect_leaf_nodes_with_terms(&self) -> Vec<(u64, Rc<Vec<u64>>)> {
+        let mut map: HashMap<u64, Rc<Vec<u64>>> = HashMap::new();
 
         fn recurse(
             this: &GeneralizedSuffixTree,
             node: NodeID,
-            map: &mut HashMap<u32, Rc<Vec32<u32>>>,
+            map: &mut HashMap<u64, Rc<Vec<u64>>>,
         ) {
             for (&_ch, &target) in this.get_node(node).transitions.iter() {
                 if target == INVALID {
@@ -854,17 +854,17 @@ impl GeneralizedSuffixTree {
     }
 
     /// Streaming iterator that yields `(term_i, term_j, rc_for_i, start, len)`
-    /// where `rc_for_i` is an `Rc<Vec32<u32>>` referencing the original
+    /// where `rc_for_i` is an `Rc<Vec<u64>>` referencing the original
     /// backing buffer for the i'th string (no cloning of string contents).
-    pub fn overlapping_pairs_nodes(&self) -> impl Iterator<Item = (u32, u32, Rc<Vec32<u32>>, usize, usize)> {
+    pub fn overlapping_pairs_nodes(&self) -> impl Iterator<Item = (u64, u64, Rc<Vec<u64>>, usize, usize)> {
         struct OverlapNodeIter {
-            pairs: Vec<(u32, Rc<Vec32<u32>>)>,
+            pairs: Vec<(u64, Rc<Vec<u64>>)>,
             i: usize,
             j: usize,
         }
 
         impl Iterator for OverlapNodeIter {
-            type Item = (u32, u32, Rc<Vec32<u32>>, usize, usize);
+            type Item = (u64, u64, Rc<Vec<u64>>, usize, usize);
 
             fn next(&mut self) -> Option<Self::Item> {
                 let n = self.pairs.len();
@@ -914,11 +914,11 @@ impl GeneralizedSuffixTree {
         }
 
         // Build pairs from collected full strings with terms. This currently
-        // wraps each collected `Vec32<u32>` into an `Rc` so the iterator can
-        // return an `Rc<Vec32<u32>>`. This avoids walking nodes directly and
+        // wraps each collected `Vec<u64>` into an `Rc` so the iterator can
+        // return an `Rc<Vec<u64>>`. This avoids walking nodes directly and
         // is simpler and robust; it can be optimized later to avoid the
         // allocation if desired.
-        let pairs_rc: Vec<(u32, Rc<Vec32<u32>>)> = self
+        let pairs_rc: Vec<(u64, Rc<Vec<u64>>)> = self
             .collect_full_strings_with_terms()
             .into_iter()
             .map(|(t, mut s)| {
