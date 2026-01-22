@@ -4,7 +4,6 @@ mod disjoint_set;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use mediumvec::{Vec, Vec};
 
 type NodeID = u64;
 type IndexType = u64;
@@ -98,10 +97,9 @@ impl ReferencePoint {
 ///
 /// ```
 /// use generalized_suffix_tree::GeneralizedSuffixTree;
-/// use mediumvec::Vec;
 /// let mut tree = GeneralizedSuffixTree::new();
-/// tree.add_string(Vec![1,2,3,4,5,6,7,8,9]);
-/// tree.add_string(Vec![7,8,9,10,11,12,13,14]);
+/// tree.add_string(vec![1,2,3,4,5,6,7,8,9]);
+/// tree.add_string(vec![7,8,9,10,11,12,13,14]);
 /// println!("{:?}", tree.is_suffix(&[7,8,9]));
 /// ```
 #[derive(Debug)]
@@ -115,7 +113,7 @@ impl Default for GeneralizedSuffixTree {
     fn default() -> Self {
         // Set the slice of root to be [0, 1) to allow it consume one character whenever we are transitioning from sink to root.
         // No other node will ever transition to root so this won't affect anything else.
-        let root_data = Rc::new(Vec![0]);
+        let root_data = Rc::new(vec![0]);
         let empty = Rc::new(Vec::new());
         let mut root = Node::new(root_data.clone(), 0, 1);
         let mut sink = Node::new(empty.clone(), 0, 0);
@@ -124,7 +122,7 @@ impl Default for GeneralizedSuffixTree {
         sink.suffix_link = ROOT;
 
         let term = u64::MAX;
-        let node_storage: Vec<Node> = Vec![root, sink];
+        let node_storage: Vec<Node> = vec![root, sink];
         Self {
             node_storage,
             inserted_strings_count: 0,
@@ -178,7 +176,7 @@ impl GeneralizedSuffixTree {
         let mut prev_node: HashMap<CharType, NodeID> = HashMap::new();
 
         // lca_cnt[v] means the total number of times that the lca of two nodes is node v.
-        let mut lca_cnt: Vec<usize> = Vec![0; self.node_storage.len()];
+        let mut lca_cnt: Vec<usize> = vec![0; self.node_storage.len()];
 
         let mut longest_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);
         let mut cur_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);

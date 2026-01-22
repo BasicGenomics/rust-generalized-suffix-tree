@@ -2,14 +2,13 @@ use generalized_suffix_tree;
 
 #[cfg(test)]
 mod tests {
-    use mediumvec::{Vec32, vec32};
 
     use super::*;
 
     #[test]
     fn test_is_suffix() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        let s1 = vec32![1,2,3,4,5,6];
+        let s1 = vec![1,2,3,4,5,6];
         tree.add_string(s1.clone());
         for i in 0..s1.len() {
             assert!(tree.is_suffix(&s1[i..]), "{:?} should be a suffix", &s1[i..]);
@@ -17,7 +16,7 @@ mod tests {
         assert!(!tree.is_suffix(&[1]));
         assert!(!tree.is_suffix(&[1,2]));
 
-        let s2 = vec32![4,5,6,7,8,9,10];
+        let s2 = vec![4,5,6,7,8,9,10];
         tree.add_string(s2.clone());
         for i in 0..s1.len() {
             assert!(tree.is_suffix(&s1[i..]), "{:?} should be a suffix", &s1[i..]);
@@ -31,7 +30,7 @@ mod tests {
     #[test]
     fn test_is_substr() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        let s1 = vec32![1,2,3,4,5,6];
+        let s1 = vec![1,2,3,4,5,6];
         tree.add_string(s1.clone());
         for i in 0..s1.len() {
             for j in i..s1.len() {
@@ -45,7 +44,7 @@ mod tests {
         assert!(!tree.is_substr(&[2,3,10]));
         assert!(!tree.is_substr(&[3,4,50]));
 
-        let s2 = vec32![4,5,6,7,8,9,10];
+        let s2 = vec![4,5,6,7,8,9,10];
         tree.add_string(s2.clone());
         for i in 0..s1.len() {
             for j in i..s1.len() {
@@ -72,16 +71,16 @@ mod tests {
     fn test_longest_common_substring_all() {
         {
             let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-            tree.add_string(vec32![1,2,3,4,5,6,7,8,9]);
-            tree.add_string(vec32![7,8,9,10,11,12,13,14]);
+            tree.add_string(vec![1,2,3,4,5,6,7,8,9]);
+            tree.add_string(vec![7,8,9,10,11,12,13,14]);
             tree.pretty_print();
-            assert_eq!(tree.longest_common_substring_all(), vec32![7,8,9]);
+            assert_eq!(tree.longest_common_substring_all(), vec![7,8,9]);
         }
         {
             let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-            tree.add_string(vec32![1,2,3,4,5,6,7,8,9]);
-            tree.add_string(vec32![32,31,30,4,5,6,7,8,9,10,11,12,13,14]);
-            assert_eq!(tree.longest_common_substring_all(), vec32![4,5,6,7,8,9]);
+            tree.add_string(vec![1,2,3,4,5,6,7,8,9]);
+            tree.add_string(vec![32,31,30,4,5,6,7,8,9,10,11,12,13,14]);
+            assert_eq!(tree.longest_common_substring_all(), vec![4,5,6,7,8,9]);
         }
     }
 /*
@@ -110,11 +109,11 @@ mod tests {
         }
     }
  */
-    fn gen_random_string(len: usize, alphabet_size: usize) -> Vec32<u32> {
-        let mut s = Vec32::new();
+    fn gen_random_string(len: usize, alphabet_size: usize) -> Vec<u64> {
+        let mut s = Vec::new();
         for _ in 0..len {
-            let ch = (rand::random::<u32>() % alphabet_size as u32);
-            s.push(ch as u32);
+            let ch = (rand::random::<u64>() % alphabet_size as u64);
+            s.push(ch as u64);
         }
         s
     }
@@ -149,51 +148,51 @@ mod tests {
     #[test]
     fn test_overlapping_pairs() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        tree.add_string(vec32![1,2,3]);
-        tree.add_string(vec32![2,3,4]);
-        tree.add_string(vec32![1,2,5]);
-        tree.add_string(vec32![2,5,6]);
+        tree.add_string(vec![1,2,3]);
+        tree.add_string(vec![2,3,4]);
+        tree.add_string(vec![1,2,5]);
+        tree.add_string(vec![2,5,6]);
 
         let pairs: Vec<_> = tree.overlapping_pairs().collect();
 
         // Expect (1,2,3) overlaps (2,3,4) on [2,3]
-        assert!(pairs.iter().any(|(a,b,ov)| a == &vec32![1,2,3] && b == &vec32![2,3,4] && ov == &vec32![2,3]));
+        assert!(pairs.iter().any(|(a,b,ov)| a == &vec![1,2,3] && b == &vec![2,3,4] && ov == &vec![2,3]));
 
         // (1,2,3) should NOT overlap (1,2,5)
-        assert!(!pairs.iter().any(|(a,b,_)| a == &vec32![1,2,3] && b == &vec32![1,2,5]));
+        assert!(!pairs.iter().any(|(a,b,_)| a == &vec![1,2,3] && b == &vec![1,2,5]));
 
         // (1,2,5) overlaps (2,5,6) on [2,5]
-        assert!(pairs.iter().any(|(a,b,ov)| a == &vec32![1,2,5] && b == &vec32![2,5,6] && ov == &vec32![2,5]));
+        assert!(pairs.iter().any(|(a,b,ov)| a == &vec![1,2,5] && b == &vec![2,5,6] && ov == &vec![2,5]));
     }
 
     #[test]
     fn test_overlapping_indices() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        tree.add_string(vec32![1,2,3]);
-        tree.add_string(vec32![2,3,4]);
-        tree.add_string(vec32![1,2,5]);
-        tree.add_string(vec32![2,5,6]);
+        tree.add_string(vec![1,2,3]);
+        tree.add_string(vec![2,3,4]);
+        tree.add_string(vec![1,2,5]);
+        tree.add_string(vec![2,5,6]);
 
         let pairs: Vec<_> = tree.overlapping_pairs_indices().collect();
 
         // There should be overlaps [2,3] and [2,5]
-        assert!(pairs.iter().any(|(_,_,ov)| ov == &vec32![2,3]));
-        assert!(pairs.iter().any(|(_,_,ov)| ov == &vec32![2,5]));
+        assert!(pairs.iter().any(|(_,_,ov)| ov == &vec![2,3]));
+        assert!(pairs.iter().any(|(_,_,ov)| ov == &vec![2,5]));
 
         // Verify that (1,2,3) does not overlap (1,2,5) by mapping terms
         let terms = tree.collect_full_strings_with_terms();
-        let term_123 = terms.iter().find(|(_t,s)| s == &vec32![1,2,3]).unwrap().0;
-        let term_125 = terms.iter().find(|(_t,s)| s == &vec32![1,2,5]).unwrap().0;
+        let term_123 = terms.iter().find(|(_t,s)| s == &vec![1,2,3]).unwrap().0;
+        let term_125 = terms.iter().find(|(_t,s)| s == &vec![1,2,5]).unwrap().0;
         assert!(!pairs.iter().any(|(a,b,_)| *a == term_123 && *b == term_125));
     }
 
     #[test]
     fn test_overlapping_indices_noalloc() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        tree.add_string(vec32![1,2,3]);
-        tree.add_string(vec32![2,3,4]);
-        tree.add_string(vec32![1,2,5]);
-        tree.add_string(vec32![2,5,6]);
+        tree.add_string(vec![1,2,3]);
+        tree.add_string(vec![2,3,4]);
+        tree.add_string(vec![1,2,5]);
+        tree.add_string(vec![2,5,6]);
 
         let pairs: Vec<_> = tree.overlapping_pairs_indices_noalloc().collect();
 
@@ -206,22 +205,22 @@ mod tests {
         // Check presence of overlap [2,3]
         assert!(pairs.iter().any(|(a,b,start,len)| {
             if let (Some(sa), Some(_sb)) = (map.get(a), map.get(b)) {
-                let mut got = Vec32::new();
+                let mut got = Vec::new();
                 for idx in *start..(*start + *len) {
                     got.push(sa[idx]);
                 }
-                got == vec32![2,3]
+                got == vec![2,3]
             } else { false }
         }));
 
         // Check presence of overlap [2,5]
         assert!(pairs.iter().any(|(a,b,start,len)| {
             if let (Some(sa), Some(_sb)) = (map.get(a), map.get(b)) {
-                let mut got = Vec32::new();
+                let mut got = Vec::new();
                 for idx in *start..(*start + *len) {
                     got.push(sa[idx]);
                 }
-                got == vec32![2,5]
+                got == vec![2,5]
             } else { false }
         }));
     }
@@ -229,10 +228,10 @@ mod tests {
     #[test]
     fn test_overlapping_pairs_nodes() {
         let mut tree = generalized_suffix_tree::GeneralizedSuffixTree::new();
-        tree.add_string(vec32![1,2,3]);
-        tree.add_string(vec32![2,3,4]);
-        tree.add_string(vec32![1,2,5]);
-        tree.add_string(vec32![2,5,6]);
+        tree.add_string(vec![1,2,3]);
+        tree.add_string(vec![2,3,4]);
+        tree.add_string(vec![1,2,5]);
+        tree.add_string(vec![2,5,6]);
 
         let _terms = tree.collect_full_strings_with_terms();
         let pairs: Vec<_> = tree.overlapping_pairs_nodes().collect();
@@ -246,20 +245,20 @@ mod tests {
 
         // Check that we observe overlap [2,3]
         assert!(pairs.iter().any(|(_a,_b,rc,start,len)| {
-            let mut got = Vec32::new();
+            let mut got = Vec::new();
             for idx in *start..(*start + *len) {
                 got.push(rc[idx]);
             }
-            got == vec32![2,3]
+            got == vec![2,3]
         }));
 
         // Check that we observe overlap [2,5]
         assert!(pairs.iter().any(|(_a,_b,rc,start,len)| {
-            let mut got = Vec32::new();
+            let mut got = Vec::new();
             for idx in *start..(*start + *len) {
                 got.push(rc[idx]);
             }
-            got == vec32![2,5]
+            got == vec![2,5]
         }));
     }
 }
