@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 
 type NodeID = u64;
+type StrID = u64;
 type IndexType = u64;
 type CharType = u64;
 
@@ -105,8 +106,8 @@ impl ReferencePoint {
 #[derive(Debug)]
 pub struct GeneralizedSuffixTree {
     node_storage: Vec<Node>,
-    inserted_strings_count: u64,
-    term: u64,
+    str_storage: Vec<Vec<u64>>,
+    term: u64
 }
 
 impl Default for GeneralizedSuffixTree {
@@ -122,11 +123,12 @@ impl Default for GeneralizedSuffixTree {
         sink.suffix_link = ROOT;
 
         let term = u64::MAX;
+
         let node_storage: Vec<Node> = vec![root, sink];
         Self {
             node_storage,
-            inserted_strings_count: 0,
-            term,
+            str_storage: Vec::new(),
+            term
         }
     }
 }
@@ -191,7 +193,7 @@ impl GeneralizedSuffixTree {
 
         let mut result: Vec<u64> = Vec::new();
         for s in longest_str.0 {
-            result.extend(s.as_slice().iter().map(|n| *n).collect::<Vec<u64>>());
+            result.extend(self.get_string_slice_short(s).iter().map(|n| *n).collect::<Vec<u64>>());
         }
         result
     }
@@ -526,406 +528,16 @@ impl GeneralizedSuffixTree {
         &mut self.node_storage[node_id as usize]
     }
 
-    fn get_string_slice_short<'a>(&'a self, slice: &'a MappedSubstring) -> &'a [u64] {
-        slice.as_slice()
+    fn get_string(&self, str_id: StrID) -> &[u64] {
+        &self.str_storage[str_id as usize]
     }
 
-    fn get_string(&self, slice: &MappedSubstring) -> Vec<u64> {
-        slice.as_slice().iter().map(|n| *n).collect::<Vec<u64>>()
+    fn get_string_slice(&self, str_id: StrID, start: IndexType, end: IndexType) -> &[u64] {
+        &self.get_string(str_id)[start as usize..end as usize]
     }
 
-    fn collect_full_strings(&self) -> Vec<Vec<u64>> {
-        let mut results: Vec<Vec<u64>> = Vec::new();
-        let mut cur: Vec<u64> = Vec::new();
-
-        fn recurse(
-            this: &GeneralizedSuffixTree,
-            node: NodeID,
-            cur: &mut Vec<u64>,
-            results: &mut Vec<Vec<u64>>,
-        ) {
-            for (&_ch, &target) in this.get_node(node).transitions.iter() {
-                if target == INVALID {
-                    continue;
-                }
-                let slice = &this.get_node(target).substr;
-                let prev_len = cur.len();
-                for &v in slice.as_slice() {
-                    cur.push(v);
-                }
-                // If this edge reaches the end of its backing string, it's a leaf for some suffix.
-                // The full original string corresponds to the suffix that starts at position 0,
-                // which will produce a `cur` whose length equals the backing string length.
-                if slice.end as usize == slice.data.len() {
-                    if cur.len() == slice.data.len() {
-                        if cur.len() >= 1 {
-                            let mut s = Vec::new();
-                            let end = (cur.len() - 1) as usize; // drop terminator
-                            for idx in 0..end {
-                                s.push(cur[idx]);
-                            }
-                            results.push(s);
-                        }
-                    }
-                } else {
-                    recurse(this, target, cur, results);
-                }
-                while cur.len() > prev_len {
-                    cur.pop();
-                }
-            }
-        }
-
-        recurse(self, ROOT, &mut cur, &mut results);
-
-        results
-    }
-
-    /// Collect full inserted strings along with their unique terminator
-    /// characters. Returns a Vec of (terminator, string-without-terminator).
-    pub fn collect_full_strings_with_terms(&self) -> Vec<(u64, Vec<u64>)> {
-        let mut results: Vec<(u64, Vec<u64>)> = Vec::new();
-        let mut cur: Vec<u64> = Vec::new();
-
-        fn recurse(
-            this: &GeneralizedSuffixTree,
-            node: NodeID,
-            cur: &mut Vec<u64>,
-            results: &mut Vec<(u64, Vec<u64>)>,
-        ) {
-            for (&_ch, &target) in this.get_node(node).transitions.iter() {
-                if target == INVALID {
-                    continue;
-                }
-                let slice = &this.get_node(target).substr;
-                let prev_len = cur.len();
-                for &v in slice.as_slice() {
-                    cur.push(v);
-                }
-                if slice.end as usize == slice.data.len() {
-                    if cur.len() >= 1 {
-                        let term = cur[cur.len() - 1];
-                        let mut s = Vec::new();
-                        let end = cur.len() - 1;
-                        for idx in 0..end {
-                            s.push(cur[idx]);
-                        }
-                        results.push((term, s));
-                    }
-                } else {
-                    recurse(this, target, cur, results);
-                }
-                while cur.len() > prev_len {
-                    cur.pop();
-                }
-            }
-        }
-
-        recurse(self, ROOT, &mut cur, &mut results);
-
-        // Keep only the longest string per terminator (the full inserted string).
-        let mut map: HashMap<u64, Vec<u64>> = HashMap::new();
-        for (term, s) in results.into_iter() {
-            let entry = map.entry(term).or_insert_with(Vec::new);
-            if s.len() > entry.len() {
-                *entry = s;
-            }
-        }
-        map.into_iter().collect()
-    }
-
-    /// Return all ordered pairs of distinct inserted full-strings that have a
-    /// non-empty suffix/prefix overlap. Each returned tuple is
-    /// (string_i, string_j, overlap) where `overlap` is the maximal suffix of
-    /// `string_i` that equals a prefix of `string_j` (length >= 1).
-    pub fn overlapping_pairs(&self) -> impl Iterator<Item = (Vec<u64>, Vec<u64>, Vec<u64>)> {
-        struct OverlapIter {
-            strs: Vec<Vec<u64>>,
-            i: usize,
-            j: usize,
-        }
-
-        impl Iterator for OverlapIter {
-            type Item = (Vec<u64>, Vec<u64>, Vec<u64>);
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let n = self.strs.len();
-                while self.i < n {
-                    if self.j >= n {
-                        self.i += 1;
-                        self.j = 0;
-                        continue;
-                    }
-                    if self.i == self.j {
-                        self.j += 1;
-                        continue;
-                    }
-                    let si = &self.strs[self.i];
-                    let sj = &self.strs[self.j];
-                    let len_i = si.len() as usize;
-                    let len_j = sj.len() as usize;
-                    let mut best_k = 0usize;
-                    let max_k = std::cmp::min(len_i, len_j);
-                    for k in 1..=max_k {
-                        let mut ok = true;
-                        for t in 0..k {
-                            if si[len_i - k + t] != sj[t] {
-                                ok = false;
-                                break;
-                            }
-                        }
-                        if ok {
-                            best_k = k; // keep largest found
-                        }
-                    }
-                    self.j += 1;
-                    if best_k > 0 {
-                        let mut overlap = Vec::new();
-                        let start = len_i - best_k;
-                        for t in start..len_i {
-                            overlap.push(si[t]);
-                        }
-                        return Some((si.clone(), sj.clone(), overlap));
-                    }
-                }
-                None
-            }
-        }
-
-        OverlapIter { strs: self.collect_full_strings(), i: 0, j: 0 }
-    }
-
-    /// Streaming iterator that yields tuples `(term_i, term_j, overlap_vec)`
-    /// where `term_i` and `term_j` are the unique terminator characters that
-    /// identify the original inserted strings, and `overlap_vec` is the
-    /// overlapping sequence (suffix of i == prefix of j) with length >= 1.
-    pub fn overlapping_pairs_indices(&self) -> impl Iterator<Item = (u64, u64, Vec<u64>)> {
-        struct OverlapIdxIter {
-            pairs: Vec<(u64, Vec<u64>)>,
-            i: usize,
-            j: usize,
-        }
-
-        impl Iterator for OverlapIdxIter {
-            type Item = (u64, u64, Vec<u64>);
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let n = self.pairs.len();
-                while self.i < n {
-                    if self.j >= n {
-                        self.i += 1;
-                        self.j = 0;
-                        continue;
-                    }
-                    if self.i == self.j {
-                        self.j += 1;
-                        continue;
-                    }
-                    let (term_i, ref si) = &self.pairs[self.i];
-                    let (term_j, ref sj) = &self.pairs[self.j];
-                    let len_i = si.len();
-                    let len_j = sj.len();
-                    let mut best_k = 0usize;
-                    let max_k = std::cmp::min(len_i, len_j);
-                    for k in 1..=max_k {
-                        let mut ok = true;
-                        for t in 0..k {
-                            if si[len_i - k + t] != sj[t] {
-                                ok = false;
-                                break;
-                            }
-                        }
-                        if ok {
-                            best_k = k;
-                        }
-                    }
-                    self.j += 1;
-                    if best_k > 0 {
-                        let mut overlap = Vec::new();
-                        let start = len_i - best_k;
-                        for t in start..len_i {
-                            overlap.push(si[t]);
-                        }
-                        return Some((*term_i, *term_j, overlap));
-                    }
-                }
-                None
-            }
-        }
-
-        OverlapIdxIter { pairs: self.collect_full_strings_with_terms(), i: 0, j: 0 }
-    }
-
-    /// Streaming iterator that yields `(term_i, term_j, overlap_slice)` where
-    /// `overlap_slice` is a borrowed slice into the iterator's internal buffer
-    /// (no allocation per yielded overlap).
-    /// Streaming iterator that yields `(term_i, term_j, start, len)` where
-    /// `start` and `len` are offsets into the full string corresponding to
-    /// `term_i` describing the overlap region. This avoids allocating overlap
-    /// vectors per yielded pair; consumers can map terminators to strings via
-    /// `collect_full_strings_with_terms()` and slice accordingly.
-    pub fn overlapping_pairs_indices_noalloc(&self) -> impl Iterator<Item = (u64, u64, usize, usize)> {
-        struct OverlapIdxNoAllocIter {
-            pairs: Vec<(u64, Vec<u64>)>,
-            i: usize,
-            j: usize,
-        }
-
-        impl Iterator for OverlapIdxNoAllocIter {
-            type Item = (u64, u64, usize, usize);
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let n = self.pairs.len();
-                while self.i < n {
-                    if self.j >= n {
-                        self.i += 1;
-                        self.j = 0;
-                        continue;
-                    }
-                    if self.i == self.j {
-                        self.j += 1;
-                        continue;
-                    }
-                    let (term_i, ref si) = &self.pairs[self.i];
-                    let (term_j, ref sj) = &self.pairs[self.j];
-                    let len_i = si.len();
-                    let len_j = sj.len();
-                    let mut best_k = 0usize;
-                    let max_k = std::cmp::min(len_i, len_j);
-                    for k in 1..=max_k {
-                        let mut ok = true;
-                        for t in 0..k {
-                            if si[len_i - k + t] != sj[t] {
-                                ok = false;
-                                break;
-                            }
-                        }
-                        if ok {
-                            best_k = k;
-                        }
-                    }
-                    self.j += 1;
-                    if best_k > 0 {
-                        let start = len_i - best_k;
-                        return Some((*term_i, *term_j, start, best_k));
-                    }
-                }
-                None
-            }
-        }
-
-        OverlapIdxNoAllocIter { pairs: self.collect_full_strings_with_terms(), i: 0, j: 0 }
-    }
-
-    /// Collect leaf nodes producing the unique terminator -> backing Rc mapping.
-    fn collect_leaf_nodes_with_terms(&self) -> Vec<(u64, Rc<Vec<u64>>)> {
-        let mut map: HashMap<u64, Rc<Vec<u64>>> = HashMap::new();
-
-        fn recurse(
-            this: &GeneralizedSuffixTree,
-            node: NodeID,
-            map: &mut HashMap<u64, Rc<Vec<u64>>>,
-        ) {
-            for (&_ch, &target) in this.get_node(node).transitions.iter() {
-                if target == INVALID {
-                    continue;
-                }
-                let slice = &this.get_node(target).substr;
-                if slice.end as usize == slice.data.len() {
-                    // leaf
-                    if slice.end > 0 {
-                        let term = slice.data[(slice.end - 1) as usize];
-                        let rc = slice.data.clone();
-                        let entry = map.entry(term).or_insert_with(|| rc.clone());
-                        if rc.len() > entry.len() {
-                            *entry = rc.clone();
-                        }
-                    }
-                } else {
-                    recurse(this, target, map);
-                }
-            }
-        }
-
-        recurse(self, ROOT, &mut map);
-        map.into_iter().collect()
-    }
-
-    /// Streaming iterator that yields `(term_i, term_j, rc_for_i, start, len)`
-    /// where `rc_for_i` is an `Rc<Vec<u64>>` referencing the original
-    /// backing buffer for the i'th string (no cloning of string contents).
-    pub fn overlapping_pairs_nodes(&self) -> impl Iterator<Item = (u64, u64, Rc<Vec<u64>>, usize, usize)> {
-        struct OverlapNodeIter {
-            pairs: Vec<(u64, Rc<Vec<u64>>)>,
-            i: usize,
-            j: usize,
-        }
-
-        impl Iterator for OverlapNodeIter {
-            type Item = (u64, u64, Rc<Vec<u64>>, usize, usize);
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let n = self.pairs.len();
-                while self.i < n {
-                    if self.j >= n {
-                        self.i += 1;
-                        self.j = 0;
-                        continue;
-                    }
-                    if self.i == self.j {
-                        self.j += 1;
-                        continue;
-                    }
-                    let (term_i, ref rc_i) = &self.pairs[self.i];
-                    let (term_j, ref rc_j) = &self.pairs[self.j];
-                    let len_i = rc_i.len();
-                    let len_j = rc_j.len();
-                    // Exclude terminator at the end of each buffer when matching.
-                    if len_i == 0 || len_j == 0 {
-                        self.j += 1;
-                        continue;
-                    }
-                    let data_len_i = len_i - 1;
-                    let data_len_j = len_j - 1;
-                    let mut best_k = 0usize;
-                    let max_k = std::cmp::min(data_len_i, data_len_j);
-                    for k in 1..=max_k {
-                        let mut ok = true;
-                        for t in 0..k {
-                            if rc_i[data_len_i - k + t] != rc_j[t] {
-                                ok = false;
-                                break;
-                            }
-                        }
-                        if ok {
-                            best_k = k;
-                        }
-                    }
-                    self.j += 1;
-                    if best_k > 0 {
-                        let start = data_len_i - best_k;
-                        return Some((*term_i, *term_j, rc_i.clone(), start, best_k));
-                    }
-                }
-                None
-            }
-        }
-
-        // Build pairs from collected full strings with terms. This currently
-        // wraps each collected `Vec<u64>` into an `Rc` so the iterator can
-        // return an `Rc<Vec<u64>>`. This avoids walking nodes directly and
-        // is simpler and robust; it can be optimized later to avoid the
-        // allocation if desired.
-        let pairs_rc: Vec<(u64, Rc<Vec<u64>>)> = self
-            .collect_full_strings_with_terms()
-            .into_iter()
-            .map(|(t, mut s)| {
-                s.push(t);
-                (t, Rc::new(s))
-            })
-            .collect();
-
-        OverlapNodeIter { pairs: pairs_rc, i: 0, j: 0 }
+    fn get_string_slice_short(&self, slice: &MappedSubstring) -> &[u64] {
+        self.get_string_slice(slice.str_id, slice.start, slice.end)
     }
 
     fn transition(&self, node: NodeID, ch: CharType) -> NodeID {
@@ -943,5 +555,8 @@ impl GeneralizedSuffixTree {
         self.get_node_mut(node).transitions.insert(ch, target_node);
     }
 
-    
+    fn get_char(&self, str_id: StrID, index: IndexType) -> u64 {
+        assert!((index as usize) < self.get_string(str_id).len());
+        self.get_string(str_id)[index as usize]
+    }
 }
