@@ -119,7 +119,7 @@ impl ReferencePoint {
 #[derive(Debug)]
 pub struct GeneralizedSuffixTree {
     node_storage: Vec<Node>,
-    str_storage: Vec<Vec<u64>>,
+    pub str_storage: Vec<Vec<u64>>,
     term: u64
 }
 
