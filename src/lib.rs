@@ -10,7 +10,7 @@ use mediumvec::{vec32, Vec32};
 type NodeID = u32;
 type StrID = u32;
 type IndexType = u32;
-type CharType = u64;
+type CharType = u32;
 
 // Special nodes.
 const ROOT: NodeID = 0;
@@ -122,8 +122,8 @@ impl ReferencePoint {
 #[derive(Debug)]
 pub struct GeneralizedSuffixTree {
     node_storage: Vec32<Node>,
-    pub str_storage: Vec32<Vec32<u64>>,
-    term: u64
+    pub str_storage: Vec32<Vec32<u32>>,
+    term: u32
 }
 
 impl Default for GeneralizedSuffixTree {
@@ -136,7 +136,7 @@ impl Default for GeneralizedSuffixTree {
         root.suffix_link = SINK;
         sink.suffix_link = ROOT;
 
-        let term = u64::MAX;
+        let term = u32::MAX;
 
         let node_storage: Vec32<Node> = vec32![root, sink];
         Self {
@@ -158,9 +158,8 @@ impl GeneralizedSuffixTree {
     }
 
     /// Add a new string to the generalized suffix tree.
-    pub fn add_string(&mut self, mut s: Vec32<u64>) {
+    pub fn add_string(&mut self, mut s: Vec32<u32>) {
         let term = self.term;
-        self.decrement_term();
         self.validate_string(&s, term);
 
         let str_id = self.str_storage.len() as StrID;
@@ -172,7 +171,7 @@ impl GeneralizedSuffixTree {
         self.process_suffixes(str_id);
     }
 
-    fn validate_string(&self, s: &[u64], term: u64) {
+    fn validate_string(&self, s: &[u32], term: u32) {
         assert!(s.len() <= IndexType::max_value() as usize);
         assert!(!s.iter().any(|ch| *ch > self.term), "String contains character beyond allowed range");
         assert!(!s.contains(&term), "String should not contain terminator character");
@@ -184,7 +183,7 @@ impl GeneralizedSuffixTree {
     /// It can be trivially extended to support longest common substring among
     /// `K` strings.
     #[must_use]
-    pub fn longest_common_substring_all(&self) -> Vec32<u64> {
+    pub fn longest_common_substring_all(&self) -> Vec32<u32> {
         let mut disjoint_set = disjoint_set::DisjointSet::new(self.node_storage.len());
 
         // prev_node stores the most recent occurance of a leaf that belongs to each string.
@@ -205,9 +204,9 @@ impl GeneralizedSuffixTree {
             &mut cur_str,
         );
 
-        let mut result: Vec32<u64> = Vec32::new();
+        let mut result: Vec32<u32> = Vec32::new();
         for s in longest_str.0 {
-            result.extend(self.get_string_slice_short(s).iter().map(|n| *n).collect::<Vec32<u64>>());
+            result.extend(self.get_string_slice_short(s).iter().map(|n| *n).collect::<Vec32<u32>>());
         }
         result
     }
@@ -286,7 +285,7 @@ impl GeneralizedSuffixTree {
     /// Find the longest common substring between string `s` and the current suffix.
     /// This function allows us compute this without adding `s` to the suffix.
     #[must_use]
-    pub fn longest_common_substring_with<'a>(&self, s: &'a[u64]) -> &'a [u64] {
+    pub fn longest_common_substring_with<'a>(&self, s: &'a[u32]) -> &'a [u32] {
         let mut longest_start: IndexType = 0;
         let mut longest_len: IndexType = 0;
         let mut cur_start: IndexType = 0;
@@ -360,19 +359,19 @@ impl GeneralizedSuffixTree {
     }
     /// Checks whether a given string `s` is a suffix in the suffix tree.
     #[must_use]
-    pub fn is_suffix(&self, s: &[u64]) -> bool {
+    pub fn is_suffix(&self, s: &[u32]) -> bool {
         self.is_suffix_or_substr(s, false)
     }
 
     /// Checks whether a given string `s` is a substring of any of the strings
     /// in the suffix tree.
     #[must_use]
-    pub fn is_substr(&self, s: &[u64]) -> bool {
+    pub fn is_substr(&self, s: &[u32]) -> bool {
         self.is_suffix_or_substr(s, true)
     }
 
     #[must_use]
-    fn is_suffix_or_substr(&self, s: &[u64], check_substr: bool) -> bool {
+    fn is_suffix_or_substr(&self, s: &[u32], check_substr: bool) -> bool {
         assert!(!s.iter().any(|ch| *ch > self.term), "Queried string cannot contain terminator char");
         let mut node = ROOT;
         let mut index = 0;
@@ -556,15 +555,15 @@ impl GeneralizedSuffixTree {
         &mut self.node_storage[node_id as usize]
     }
 
-    fn get_string(&self, str_id: StrID) -> &[u64] {
+    fn get_string(&self, str_id: StrID) -> &[u32] {
         &self.str_storage[str_id as usize]
     }
 
-    fn get_string_slice(&self, str_id: StrID, start: IndexType, end: IndexType) -> &[u64] {
+    fn get_string_slice(&self, str_id: StrID, start: IndexType, end: IndexType) -> &[u32] {
         &self.get_string(str_id)[start as usize..end as usize]
     }
 
-    fn get_string_slice_short(&self, slice: &MappedSubstring) -> &[u64] {
+    fn get_string_slice_short(&self, slice: &MappedSubstring) -> &[u32] {
         self.get_string_slice(slice.str_id, slice.start, slice.end)
     }
     fn transition(&self, node: NodeID, ch: CharType) -> NodeID {
@@ -581,7 +580,7 @@ impl GeneralizedSuffixTree {
     fn set_transition(&mut self, node: NodeID, ch: CharType, target_node: NodeID) {
         self.get_node_mut(node).transitions.insert(ch, target_node);
     }
-    fn get_char(&self, str_id: StrID, index: IndexType) -> u64 {
+    fn get_char(&self, str_id: StrID, index: IndexType) -> u32 {
         assert!((index as usize) < self.get_string(str_id).len());
         self.get_string(str_id)[index as usize]
     }

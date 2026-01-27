@@ -111,11 +111,11 @@ mod tests {
         }
     }
  */
-    fn gen_random_string(len: usize, alphabet_size: usize) -> Vec32<u64> {
+    fn gen_random_string(len: usize, alphabet_size: usize) -> Vec32<u32> {
         let mut s = Vec32::new();
         for _ in 0..len {
-            let ch = (rand::random::<u64>() % alphabet_size as u64);
-            s.push(ch as u64);
+            let ch = (rand::random::<u32>() % alphabet_size as u32);
+            s.push(ch as u32);
         }
         s
     }
