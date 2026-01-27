@@ -4,10 +4,12 @@ mod disjoint_set;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use mediumvec::{vec32, Vec32};
 
-type NodeID = u64;
-type StrID = u64;
-type IndexType = u64;
+
+type NodeID = u32;
+type StrID = u32;
+type IndexType = u32;
 type CharType = u64;
 
 // Special nodes.
@@ -112,14 +114,15 @@ impl ReferencePoint {
 /// ```
 /// use generalized_suffix_tree::GeneralizedSuffixTree;
 /// let mut tree = GeneralizedSuffixTree::new();
-/// tree.add_string(vec![1,2,3,4,5,6,7,8,9]);
-/// tree.add_string(vec![7,8,9,10,11,12,13,14]);
+/// use mediumvec::vec32;
+/// tree.add_string(vec32![1,2,3,4,5,6,7,8,9]);
+/// tree.add_string(vec32![7,8,9,10,11,12,13,14]);
 /// println!("{:?}", tree.is_suffix(&[7,8,9]));
 /// ```
 #[derive(Debug)]
 pub struct GeneralizedSuffixTree {
-    node_storage: Vec<Node>,
-    pub str_storage: Vec<Vec<u64>>,
+    node_storage: Vec32<Node>,
+    pub str_storage: Vec32<Vec32<u64>>,
     term: u64
 }
 
@@ -135,10 +138,10 @@ impl Default for GeneralizedSuffixTree {
 
         let term = u64::MAX;
 
-        let node_storage: Vec<Node> = vec![root, sink];
+        let node_storage: Vec32<Node> = vec32![root, sink];
         Self {
             node_storage,
-            str_storage: Vec::new(),
+            str_storage: Vec32::new(),
             term
         }
     }
@@ -155,7 +158,7 @@ impl GeneralizedSuffixTree {
     }
 
     /// Add a new string to the generalized suffix tree.
-    pub fn add_string(&mut self, mut s: Vec<u64>) {
+    pub fn add_string(&mut self, mut s: Vec32<u64>) {
         let term = self.term;
         self.decrement_term();
         self.validate_string(&s, term);
@@ -181,7 +184,7 @@ impl GeneralizedSuffixTree {
     /// It can be trivially extended to support longest common substring among
     /// `K` strings.
     #[must_use]
-    pub fn longest_common_substring_all(&self) -> Vec<u64> {
+    pub fn longest_common_substring_all(&self) -> Vec32<u64> {
         let mut disjoint_set = disjoint_set::DisjointSet::new(self.node_storage.len());
 
         // prev_node stores the most recent occurance of a leaf that belongs to each string.
@@ -189,10 +192,10 @@ impl GeneralizedSuffixTree {
         let mut prev_node: HashMap<CharType, NodeID> = HashMap::new();
 
         // lca_cnt[v] means the total number of times that the lca of two nodes is node v.
-        let mut lca_cnt: Vec<usize> = vec![0; self.node_storage.len()];
+        let mut lca_cnt: Vec32<usize> = vec32![0; self.node_storage.len()];
 
-        let mut longest_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);
-        let mut cur_str: (Vec<&MappedSubstring>, IndexType) = (Vec::new(), 0);
+        let mut longest_str: (Vec32<&MappedSubstring>, IndexType) = (Vec32::new(), 0);
+        let mut cur_str: (Vec32<&MappedSubstring>, IndexType) = (Vec32::new(), 0);
         self.longest_common_substring_all_rec(
             &mut disjoint_set,
             &mut prev_node,
@@ -202,9 +205,9 @@ impl GeneralizedSuffixTree {
             &mut cur_str,
         );
 
-        let mut result: Vec<u64> = Vec::new();
+        let mut result: Vec32<u64> = Vec32::new();
         for s in longest_str.0 {
-            result.extend(self.get_string_slice_short(s).iter().map(|n| *n).collect::<Vec<u64>>());
+            result.extend(self.get_string_slice_short(s).iter().map(|n| *n).collect::<Vec32<u64>>());
         }
         result
     }
@@ -228,10 +231,10 @@ impl GeneralizedSuffixTree {
         &'a self,
         disjoint_set: &mut disjoint_set::DisjointSet,
         prev_node: &mut HashMap<CharType, NodeID>,
-        lca_cnt: &mut Vec<usize>,
+        lca_cnt: &mut Vec32<usize>,
         node: NodeID,
-        longest_str: &mut (Vec<&'a MappedSubstring>, IndexType),
-        cur_str: &mut (Vec<&'a MappedSubstring>, IndexType),
+        longest_str: &mut (Vec32<&'a MappedSubstring>, IndexType),
+        cur_str: &mut (Vec32<&'a MappedSubstring>, IndexType),
     ) -> (usize, usize) {
         let mut total_leaf = 0;
         let mut total_correction = 0;
