@@ -1,15 +1,16 @@
 //! A Generalized Suffix Tree implementation using Ukkonen's algorithm.
 mod disjoint_set;
 
-use std::collections::HashMap;
+use hashbrown::{HashMap};
 use std::rc::Rc;
 
 use mediumvec::{vec32, Vec32};
 
 
+
 type NodeID = u32;
 type StrID = u32;
-type IndexType = u32;
+type IndexType = u8;
 type CharType = u32;
 
 // Special nodes.

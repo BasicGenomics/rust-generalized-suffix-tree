@@ -9,6 +9,7 @@ repository = "https://github.com/lxfind/rust-generalized-suffix-tree"
 
 [dependencies]
 mediumvec = "1.0.4"
+hashbrown = "0.16.1"
 
 [dev-dependencies]
 rand = "0.7.0"
