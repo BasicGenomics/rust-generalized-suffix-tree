@@ -373,7 +373,7 @@ impl GeneralizedSuffixTree {
 
     #[must_use]
     fn is_suffix_or_substr(&self, s: &[u32], check_substr: bool) -> bool {
-        assert!(!s.iter().any(|ch| *ch > self.term), "Queried string cannot contain terminator char");
+        assert!(!s.iter().any(|ch| *ch >= self.term), "Queried string cannot contain terminator char");
         let mut node = ROOT;
         let mut index = 0;
         let chars = s;
@@ -396,15 +396,8 @@ impl GeneralizedSuffixTree {
             node = target_node;
         }
         let mut is_suffix = false;
-        for s in &self.str_storage {
-            // The last character of each string is a terminator. We use that
-            // to look up in the current transitions to determine if we have
-            // reached the end of any string. If needed, we are also able to
-            // return which string the queried string is a suffix of.
-            if self.transition(node, *s.last().unwrap()) != INVALID {
-                is_suffix = true;
-                break;
-            }
+        if self.transition(node, self.term) != INVALID {
+            is_suffix = true;
         }
 
         check_substr || is_suffix
